@@ -164,8 +164,11 @@ async function runPipeline() {
       `Partido: ${match}\n${inv}`
     );
     let params;
-    try { params = JSON.parse(cal.replace(/```json|```/g,'').trim()); }
-    catch(e) { params = JSON.parse(cal.match(/\{[\s\S]*\}/)[0]); }
+    try {
+      const clean = cal.replace(/```json|```/g,'').trim();
+      const match = clean.match(/\{[\s\S]*?\}/);
+      params = JSON.parse(match ? match[0] : clean);
+    } catch(e) { throw new Error('Calibrador no devolvió JSON válido: ' + cal.slice(0,100)); }
     setAgent('calibrador', 'done', `λ local: ${params.lambda_home} | λ visit: ${params.lambda_away} | ρ: ${params.rho}`);
 
     setAgent('simulador', 'running', null);
@@ -178,8 +181,11 @@ async function runPipeline() {
       `Partido: ${match}\nLocal: ${(sim.win_h*100).toFixed(1)}% | Empate: ${(sim.draw*100).toFixed(1)}% | Visit: ${(sim.win_a*100).toFixed(1)}%\nOver2.5: ${(sim.over25*100).toFixed(1)}% | BTTS: ${(sim.btts*100).toFixed(1)}%\nTop marcador: ${sim.top[0][0]}-${sim.top[0][1]} (${(sim.top[0][2]*100).toFixed(1)}%)\nDatos:\n${inv}`
     );
     let anal;
-    try { anal = JSON.parse(anal_raw.replace(/```json|```/g,'').trim()); }
-    catch(e) { anal = JSON.parse(anal_raw.match(/\{[\s\S]*\}/)[0]); }
+    try {
+      const clean2 = anal_raw.replace(/```json|```/g,'').trim();
+      const match2 = clean2.match(/\{[\s\S]*?\}/);
+      anal = JSON.parse(match2 ? match2[0] : clean2);
+    } catch(e) { throw new Error('Analista no devolvió JSON válido'); }
     setAgent('analista', 'done', anal.recomendacion);
 
     const parts = match.split(/\s+vs\.?\s+/i);
