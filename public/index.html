@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mundial 2026 — Análisis de partidos</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e8e8e8; min-height: 100vh; padding: 2rem 1rem; }
+  .container { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 500; margin-bottom: 0.25rem; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 1.5rem; }
+  .input-row { display: flex; gap: 10px; margin-bottom: 1.5rem; }
+  .input-row input { flex: 1; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 10px 14px; color: #e8e8e8; font-size: 15px; outline: none; }
+  .input-row input:focus { border-color: #444; }
+  .input-row button { background: #e8e8e8; color: #0f0f0f; border: none; border-radius: 10px; padding: 10px 20px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+  .input-row button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .agent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1.5rem; }
+  .agent-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 1rem; min-height: 110px; transition: border-color 0.2s; }
+  .agent-card.active { border-color: #3b82f6; }
+  .agent-card.done { border-color: #22c55e; }
+  .agent-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .agent-icon { font-size: 15px; }
+  .agent-name { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.06em; }
+  .agent-status { margin-left: auto; font-size: 10px; padding: 2px 8px; border-radius: 99px; background: #222; color: #555; }
+  .agent-status.running { background: #1e3a5f; color: #60a5fa; }
+  .agent-status.done { background: #14532d; color: #4ade80; }
+  .agent-output { font-size: 12px; color: #888; line-height: 1.6; }
+  .result-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 1.25rem; display: none; }
+  .result-card.visible { display: block; }
+  .result-title { font-size: 16px; font-weight: 500; margin-bottom: 1rem; }
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+  .metric { background: #111; border-radius: 8px; padding: 0.75rem; text-align: center; }
+  .metric-val { font-size: 22px; font-weight: 500; }
+  .metric-lbl { font-size: 11px; color: #555; margin-top: 2px; }
+  .scores-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 1rem 0; }
+  .score-pill { background: #111; border: 1px solid #2a2a2a; border-radius: 99px; padding: 4px 12px; font-size: 13px; color: #888; }
+  .score-pill.top { border-color: #3b82f6; color: #60a5fa; font-weight: 500; }
+  .confianza { display: inline-block; padding: 3px 12px; border-radius: 99px; font-size: 12px; font-weight: 500; }
+  .ALTA { background: #14532d; color: #4ade80; }
+  .MEDIA { background: #451a03; color: #fb923c; }
+  .BAJA { background: #450a0a; color: #f87171; }
+  .recom { font-size: 13px; color: #aaa; margin-top: 0.75rem; padding: 0.75rem; background: #111; border-radius: 8px; border-left: 2px solid #3b82f6; line-height: 1.6; }
+  .error { color: #f87171; font-size: 13px; margin-top: 0.5rem; }
+  @media (max-width: 500px) { .agent-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>⚽ Mundial 2026 — Análisis de partidos</h1>
+  <p class="subtitle">Red de agentes IA: investigación → calibración → simulación → análisis</p>
+
+  <div class="input-row">
+    <input type="text" id="matchInput" placeholder="Ej: Argentina vs Francia" />
+    <button id="runBtn" onclick="runPipeline()">Analizar ↗</button>
+  </div>
+
+  <div class="agent-grid">
+    <div class="agent-card" id="card-investigador">
+      <div class="agent-header">
+        <span class="agent-icon">🔍</span>
+        <span class="agent-name">Investigador</span>
+        <span class="agent-status" id="st-investigador">esperando</span>
+      </div>
+      <div class="agent-output" id="out-investigador">Busca xG, cuotas, contexto y forma reciente.</div>
+    </div>
+    <div class="agent-card" id="card-calibrador">
+      <div class="agent-header">
+        <span class="agent-icon">⚙️</span>
+        <span class="agent-name">Calibrador</span>
+        <span class="agent-status" id="st-calibrador">esperando</span>
+      </div>
+      <div class="agent-output" id="out-calibrador">Construye lambda_home, lambda_away y rho ajustados al rival.</div>
+    </div>
+    <div class="agent-card" id="card-simulador">
+      <div class="agent-header">
+        <span class="agent-icon">🖥️</span>
+        <span class="agent-name">Simulador</span>
+        <span class="agent-status" id="st-simulador">esperando</span>
+      </div>
+      <div class="agent-output" id="out-simulador">Corre Poisson bivariado + Dixon-Coles (100k simulaciones).</div>
+    </div>
+    <div class="agent-card" id="card-analista">
+      <div class="agent-header">
+        <span class="agent-icon">📊</span>
+        <span class="agent-name">Analista</span>
+        <span class="agent-status" id="st-analista">esperando</span>
+      </div>
+      <div class="agent-output" id="out-analista">Valida contra mercado, asigna confianza y recomendación.</div>
+    </div>
+  </div>
+
+  <div id="errorMsg" class="error"></div>
+
+  <div class="result-card" id="resultCard">
+    <div class="result-title" id="resultTitle"></div>
+    <div class="metrics">
+      <div class="metric"><div class="metric-val" id="r-home">-</div><div class="metric-lbl" id="r-home-lbl">local</div></div>
+      <div class="metric"><div class="metric-val" id="r-draw">-</div><div class="metric-lbl">empate</div></div>
+      <div class="metric"><div class="metric-val" id="r-away">-</div><div class="metric-lbl" id="r-away-lbl">visitante</div></div>
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="metric-val" id="r-o15">-</div><div class="metric-lbl">over 1.5</div></div>
+      <div class="metric"><div class="metric-val" id="r-o25">-</div><div class="metric-lbl">over 2.5</div></div>
+      <div class="metric"><div class="metric-val" id="r-btts">-</div><div class="metric-lbl">ambos marcan</div></div>
+    </div>
+    <div style="font-size:12px;color:#555;margin-top:1rem;margin-bottom:6px;">MARCADORES MÁS PROBABLES</div>
+    <div class="scores-list" id="scoresList"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:0.75rem;">
+      <span style="font-size:12px;color:#555;">Confianza:</span>
+      <span class="confianza" id="confBadge">-</span>
+    </div>
+    <div class="recom" id="recomText"></div>
+  </div>
+</div>
+
+<script>
+const API = '/api/analyze';
+
+function setAgent(id, status, text) {
+  const card = document.getElementById('card-' + id);
+  const st = document.getElementById('st-' + id);
+  const out = document.getElementById('out-' + id);
+  card.className = 'agent-card' + (status === 'running' ? ' active' : status === 'done' ? ' done' : '');
+  st.className = 'agent-status' + (status === 'running' ? ' running' : status === 'done' ? ' done' : '');
+  st.textContent = status === 'running' ? 'procesando...' : status === 'done' ? 'listo ✓' : 'esperando';
+  if (text) out.textContent = text;
+}
+
+function reset() {
+  ['investigador','calibrador','simulador','analista'].forEach(id => setAgent(id, '', null));
+  document.getElementById('resultCard').classList.remove('visible');
+  document.getElementById('errorMsg').textContent = '';
+}
+
+async function callAgent(system, userContent) {
+  const resp = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ system, messages: [{ role: 'user', content: userContent }] })
+  });
+  const data = await resp.json();
+  if (!data.content) throw new Error(data.error?.message || 'Error en API');
+  return data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+}
+
+async function runPipeline() {
+  const match = document.getElementById('matchInput').value.trim();
+  if (!match) return;
+  reset();
+  document.getElementById('runBtn').disabled = true;
+
+  try {
+    setAgent('investigador', 'running', null);
+    const inv = await callAgent(
+      `Sos un scout de datos de fútbol para el Mundial 2026. Devolvé SOLO texto plano con: xG reciente de cada equipo, últimos 3 resultados, ranking FIFA, contexto del partido (qué se juega), y cuotas de mercado estimadas 1X2. Sin predicciones. Máximo 200 palabras.`,
+      `Datos para: ${match} — Mundial 2026`
+    );
+    setAgent('investigador', 'done', inv.slice(0, 300) + (inv.length > 300 ? '...' : ''));
+
+    setAgent('calibrador', 'running', null);
+    const cal = await callAgent(
+      `Sos un modelador estadístico. Recibís datos de un scout y devolvés SOLO este JSON, sin texto extra, sin backticks:\n{"lambda_home":<número>,"lambda_away":<número>,"rho":<número entre -0.03 y -0.08>,"razon_home":"<1 oración>","razon_away":"<1 oración>"}`,
+      `Partido: ${match}\n${inv}`
+    );
+    let params;
+    try { params = JSON.parse(cal.replace(/```json|```/g,'').trim()); }
+    catch(e) { params = JSON.parse(cal.match(/\{[\s\S]*\}/)[0]); }
+    setAgent('calibrador', 'done', `λ local: ${params.lambda_home} | λ visit: ${params.lambda_away} | ρ: ${params.rho}`);
+
+    setAgent('simulador', 'running', null);
+    const sim = simulatePoisson(params.lambda_home, params.lambda_away, params.rho);
+    setAgent('simulador', 'done', `Local ${(sim.win_h*100).toFixed(1)}% | Empate ${(sim.draw*100).toFixed(1)}% | Visit ${(sim.win_a*100).toFixed(1)}%`);
+
+    setAgent('analista', 'running', null);
+    const anal_raw = await callAgent(
+      `Sos un analista de pronósticos. Devolvés SOLO este JSON sin texto extra:\n{"confianza":"ALTA|MEDIA|BAJA","recomendacion":"<ganador y marcador sugerido, 2 oraciones>","advertencia":"<principal incertidumbre, 1 oración>"}`,
+      `Partido: ${match}\nLocal: ${(sim.win_h*100).toFixed(1)}% | Empate: ${(sim.draw*100).toFixed(1)}% | Visit: ${(sim.win_a*100).toFixed(1)}%\nOver2.5: ${(sim.over25*100).toFixed(1)}% | BTTS: ${(sim.btts*100).toFixed(1)}%\nTop marcador: ${sim.top[0][0]}-${sim.top[0][1]} (${(sim.top[0][2]*100).toFixed(1)}%)\nDatos:\n${inv}`
+    );
+    let anal;
+    try { anal = JSON.parse(anal_raw.replace(/```json|```/g,'').trim()); }
+    catch(e) { anal = JSON.parse(anal_raw.match(/\{[\s\S]*\}/)[0]); }
+    setAgent('analista', 'done', anal.recomendacion);
+
+    const parts = match.split(/\s+vs\.?\s+/i);
+    document.getElementById('resultTitle').textContent = match + ' — Mundial 2026';
+    document.getElementById('r-home').textContent = (sim.win_h*100).toFixed(1) + '%';
+    document.getElementById('r-home-lbl').textContent = (parts[0] || 'local') + ' gana';
+    document.getElementById('r-draw').textContent = (sim.draw*100).toFixed(1) + '%';
+    document.getElementById('r-away').textContent = (sim.win_a*100).toFixed(1) + '%';
+    document.getElementById('r-away-lbl').textContent = (parts[1] || 'visit') + ' gana';
+    document.getElementById('r-o15').textContent = (sim.over15*100).toFixed(1) + '%';
+    document.getElementById('r-o25').textContent = (sim.over25*100).toFixed(1) + '%';
+    document.getElementById('r-btts').textContent = (sim.btts*100).toFixed(1) + '%';
+
+    const sl = document.getElementById('scoresList');
+    sl.innerHTML = '';
+    sim.top.forEach((s, i) => {
+      const p = document.createElement('div');
+      p.className = 'score-pill' + (i < 3 ? ' top' : '');
+      p.textContent = `${s[0]}-${s[1]} (${(s[2]*100).toFixed(1)}%)`;
+      sl.appendChild(p);
+    });
+
+    const cb = document.getElementById('confBadge');
+    cb.textContent = anal.confianza;
+    cb.className = 'confianza ' + anal.confianza;
+    document.getElementById('recomText').textContent = anal.recomendacion + ' ⚠️ ' + anal.advertencia;
+    document.getElementById('resultCard').classList.add('visible');
+
+  } catch(err) {
+    document.getElementById('errorMsg').textContent = 'Error: ' + err.message;
+    ['investigador','calibrador','simulador','analista'].forEach(id => {
+      if (document.getElementById('st-'+id).textContent === 'procesando...') setAgent(id,'',null);
+    });
+  }
+  document.getElementById('runBtn').disabled = false;
+}
+
+function simulatePoisson(lh, la, rho) {
+  const N = 100000, maxG = 8;
+  function pmf(k, l) { let lp = k*Math.log(l)-l; for(let i=1;i<=k;i++) lp-=Math.log(i); return Math.exp(lp); }
+  function dc(i,j,l,m,r) {
+    if(i===0&&j===0) return 1-l*m*r;
+    if(i===0&&j===1) return 1+l*r;
+    if(i===1&&j===0) return 1+m*r;
+    if(i===1&&j===1) return 1-r;
+    return 1;
+  }
+  const P=[]; let tot=0;
+  for(let i=0;i<=maxG;i++) for(let j=0;j<=maxG;j++){const v=pmf(i,lh)*pmf(j,la)*dc(i,j,lh,la,rho);P.push([i,j,v]);tot+=v;}
+  P.forEach(p=>p[2]/=tot);
+  const cum=[]; let acc=0; for(const p of P){acc+=p[2];cum.push(acc);}
+  const counts={};let wh=0,dr=0,wa=0,o15=0,o25=0,btts=0;
+  for(let n=0;n<N;n++){
+    const r=Math.random(); let lo=0,hi=cum.length-1;
+    while(lo<hi){const mid=(lo+hi)>>1;cum[mid]<r?lo=mid+1:hi=mid;}
+    const[hg,ag]=P[lo]; const k=hg+'-'+ag;
+    counts[k]=(counts[k]||0)+1;
+    if(hg>ag)wh++;else if(hg===ag)dr++;else wa++;
+    if(hg+ag>1)o15++;if(hg+ag>2)o25++;if(hg>0&&ag>0)btts++;
+  }
+  const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>{const[h,a]=k.split('-');return[+h,+a,v/N];});
+  return{win_h:wh/N,draw:dr/N,win_a:wa/N,over15:o15/N,over25:o25/N,btts:btts/N,top};
+}
+</script>
+</body>
+</html>
